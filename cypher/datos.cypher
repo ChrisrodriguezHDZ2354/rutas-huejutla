@@ -45,3 +45,21 @@ WHERE i < size(dato.paradas) - 1
 MATCH (a:Parada {id: dato.paradas[i]}), (b:Parada {id: dato.paradas[i + 1]})
 MERGE (a)-[t:TRAMO {ruta: dato.id}]->(b)
 SET t.minutos = dato.minutos[i], t.pasaje = dato.pasaje, t.cerrado = false;
+
+UNWIND [
+{id:'R6', nombre:'Ruta 6 · Jardines - Hospital', color:'#0E9AA7', pasaje:13, paradas:['jardines','plaza','deportiva','hospital'], minutos:[7,5,7]}
+] AS dato
+MERGE (r:Ruta {id: dato.id})
+SET r.nombre = dato.nombre, r.color = dato.color, r.pasaje = dato.pasaje
+WITH r, dato
+UNWIND range(0, size(dato.paradas) - 1) AS i
+MATCH (p:Parada {id: dato.paradas[i]})
+MERGE (r)-[pp:PASA_POR]->(p)
+SET pp.orden = i + 1
+WITH r, dato, i
+WHERE i < size(dato.paradas) - 1
+MATCH (a:Parada {id: dato.paradas[i]}), (b:Parada {id: dato.paradas[i + 1]})
+MERGE (a)-[t:TRAMO {ruta: dato.id}]->(b)
+SET t.minutos = dato.minutos[i], t.pasaje = dato.pasaje, t.cerrado = false;
+
+UNWIND [{id:'R1',h:'23:30'},{id:'R2',h:'22:45'},{id:'R3',h:'23:45'},{id:'R4',h:'22:30'},{id:'R5',h:'22:00'},{id:'R6',h:'21:30'}] AS d MATCH (r:Ruta {id: d.id}) SET r.ultimaSalida = d.h RETURN r.id AS ruta, r.ultimaSalida AS ultimaSalida ORDER BY ruta

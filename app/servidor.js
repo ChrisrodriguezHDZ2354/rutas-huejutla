@@ -16,8 +16,15 @@ const ESPERA = 5;   // minutos que se suman por cada transbordo (bajar y esperar
 const CAMINO_VALIDO = `ALL(t IN relationships(p) WHERE NOT t.cerrado)
   AND ALL(i IN range(0, size(nodes(p)) - 2) WHERE NOT nodes(p)[i] IN nodes(p)[i + 1..])`;
 
-// ------------------------------------------------------------------ rutas de la API
 
+// ------------------------------------------------------------------ rutas de la API
+// Órdenes permitidos para /api/como-llego. El usuario solo manda una palabra;
+// el texto del ORDER BY lo escribimos nosotros, así nada del usuario entra al Cypher.
+const ORDENES = {
+  tiempo: "tiempoTotal, costo",
+  costo: "costo, tiempoTotal",
+  transbordos: "transbordos, tiempoTotal"
+};
 // GET /api/estado : version de Neo4j y cuantos nodos y relaciones hay
 async function estado() {
   const c = [];
@@ -42,11 +49,17 @@ async function red() {
 async function comoLlego(q) {
   const c = [];
   const origen = q.get("origen"), destino = q.get("destino");
+  const orden = ORDENES[q.get("orden")] || ORDENES.tiempo; // si mandan algo raro, se usa tiempo
   if (!origen || !destino || origen === destino) throw new Error("Elige dos paradas distintas");
+    // Hora de salida (HH:MM). Solo se acepta ese formato; si no llega, no se filtra nada.
+  const hora = /^([01]\d|2[0-3]):[0-5]\d$/.test(q.get("hora") || "") ? q.get("hora") : "00:00";
+  // Rutas que todavía salen a esa hora (el texto de la hora va como parámetro $hora)
+  const activas = (await cypher(`MATCH (r:Ruta) WHERE r.ultimaSalida >= $hora RETURN r.id AS id`, { hora }, c)).map(f => f.id);
   const filas = await cypher(`
 MATCH (a:Parada {id: $origen}), (b:Parada {id: $destino})
 MATCH p = (a)-[:TRAMO*1..10]-(b)
 WHERE ${CAMINO_VALIDO}
+  AND ALL(t IN relationships(p) WHERE t.ruta IN $activas)
 WITH p, relationships(p) AS ts
 WITH p, ts,
   reduce(m = 0, t IN ts | m + t.minutos) AS minutos,
@@ -55,8 +68,8 @@ WITH p, ts,
     c + CASE WHEN i = 0 OR ts[i].ruta <> ts[i - 1].ruta THEN ts[i].pasaje ELSE 0 END) AS costo
 RETURN [n IN nodes(p) | n.id] AS paradas, [t IN ts | t.ruta] AS rutas,
   minutos, transbordos, costo, minutos + transbordos * $espera AS tiempoTotal
-ORDER BY tiempoTotal, costo
-LIMIT 20`, { origen, destino, espera: ESPERA }, c);
+ORDER BY ${orden}
+LIMIT 20`, { origen, destino, espera: ESPERA, activas }, c);
   // Deja las 3 mejores opciones con recorridos distintos
   const vistas = new Set(), opciones = [];
   for (const f of filas) {

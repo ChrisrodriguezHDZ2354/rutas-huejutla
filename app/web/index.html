@@ -10,9 +10,15 @@
 <main>
   <h1>¿Como llego?</h1>
   <p class="nota">Neo4j recorre el grafo de paradas y tramos y te recomienda las 3 mejores opciones: menos tiempo total (cada transbordo suma 5 minutos de espera) y, si empatan, menor costo.</p>
-  <form class="tarjeta campos" id="buscar">
+    <form class="tarjeta campos" id="buscar">
     <label>Desde <select id="origen"></select></label>
     <label>Hasta <select id="destino"></select></label>
+    <label>Ordenar por <select id="orden">
+      <option value="tiempo">Menos tiempo</option>
+      <option value="costo">Menos costo</option>
+      <option value="transbordos">Menos transbordos</option>
+    </select></label>
+    <label>Hora de salida <input type="time" id="hora"></label>
     <label>&nbsp;<button type="submit">Buscar ruta</button></label>
   </form>
   <div id="aviso"></div>
@@ -43,6 +49,8 @@ async function iniciar() {
   }
   document.getElementById("origen").value = "rio";
   document.getElementById("destino").value = "uthh";
+    const ahora = new Date();
+  document.getElementById("hora").value = String(ahora.getHours()).padStart(2, "0") + ":" + String(ahora.getMinutes()).padStart(2, "0");
   dibujarMapa(document.getElementById("mapa"), red);
 }
 
@@ -86,7 +94,8 @@ document.getElementById("buscar").addEventListener("submit", async evento => {
   evento.preventDefault();
   try {
     const origen = document.getElementById("origen").value, destino = document.getElementById("destino").value;
-    const r = await api("/como-llego?origen=" + origen + "&destino=" + destino);   // GET /api/como-llego
+    const orden = document.getElementById("orden").value, hora = document.getElementById("hora").value;
+    const r = await api("/como-llego?origen=" + origen + "&destino=" + destino + "&orden=" + orden + "&hora=" + hora);
     mostrar(r);
     verCypher(document.getElementById("cypher"), r.cypher);
     aviso(document.getElementById("aviso"), "");
